@@ -19,6 +19,7 @@ package com.support.android.designlibdemo;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v7.widget.LinearLayoutManager;
@@ -33,49 +34,115 @@ import android.widget.TextView;
 import com.bumptech.glide.Glide;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class CheeseListFragment extends Fragment {
 
+    private RecyclerView recyclerView;
+
     @Nullable
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        RecyclerView rv = (RecyclerView) inflater.inflate(
-                R.layout.fragment_cheese_list, container, false);
-        setupRecyclerView(rv);
-        return rv;
+        recyclerView = (RecyclerView) inflater.inflate(R.layout.fragment_cheese_list, container, false);
+        initRecyclerView(recyclerView);
+        return recyclerView;
     }
 
-    private void setupRecyclerView(RecyclerView recyclerView) {
+    @Override
+    public void onStart() {
+        super.onStart();
+        retrieveDataFromApiAsync();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        recyclerView = null;
+    }
+
+    private void retrieveDataFromApiAsync() {
+        final Handler handler = new Handler();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final List<Cheese> list = retrieveDataFromApi();
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            ((SimpleStringRecyclerViewAdapter) recyclerView.getAdapter()).setItems(list);
+                            recyclerView.getAdapter().notifyDataSetChanged();
+                        }
+                    });
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+
+    /**
+     * set up recycler view (adding new adapter and update rv)
+     * @param recyclerView
+     */
+    private void initRecyclerView(RecyclerView recyclerView) {
         recyclerView.setLayoutManager(new LinearLayoutManager(recyclerView.getContext()));
-
-        try {
-            List<Cheese> cheeses = CheeseApi.listCheeses(30);
-            recyclerView.setAdapter(new SimpleStringRecyclerViewAdapter(getActivity(), cheeses));
-        } catch (IOException exception) {
-            // Ignore.
-        }
+        recyclerView.setAdapter(new SimpleStringRecyclerViewAdapter(getActivity(), new ArrayList<Cheese>()));
     }
 
-    public static class SimpleStringRecyclerViewAdapter
-            extends RecyclerView.Adapter<SimpleStringRecyclerViewAdapter.ViewHolder> {
+    /**
+     *
+     * @return - trying to retrieve data from api
+     * @throws IOException
+     */
+    List<Cheese> retrieveDataFromApi() throws IOException {
+        return CheeseApi.listCheeses(30);
+    }
+
+    /**
+     * rv adapter - cheese items
+     */
+    static class SimpleStringRecyclerViewAdapter
+            extends RecyclerView.Adapter<SimpleStringRecyclerViewAdapter.ViewHolder> implements View.OnClickListener {
 
         private final TypedValue mTypedValue = new TypedValue();
         private int mBackground;
-        private List<Cheese> mValues;
+        private List<Cheese> items;
+        private ViewHolder holder;
 
-        public static class ViewHolder extends RecyclerView.ViewHolder {
-            public Cheese mBoundItem;
+        /**
+         * constructor
+         * @param context
+         * @param items
+         */
+        SimpleStringRecyclerViewAdapter(Context context, List<Cheese> items) {
+            context.getTheme().resolveAttribute(R.attr.selectableItemBackground, mTypedValue, true);
+            mBackground = mTypedValue.resourceId;
+            this.items = items;
+        }
 
-            public final View mView;
-            public final ImageView mImageView;
-            public final TextView mTextView;
+        /**
+         * set items from api -> please move to a repository pattern >.<
+         * @param items
+         */
+        public void setItems(List<Cheese> items) {
+            this.items = items;
+        }
 
-            public ViewHolder(View view) {
+        /**
+         * viewholder
+         */
+        static class ViewHolder extends RecyclerView.ViewHolder {
+            final View mView;
+            final ImageView mImageView;
+            final TextView mTextView;
+
+            ViewHolder(View view) {
                 super(view);
                 mView = view;
-                mImageView = (ImageView) view.findViewById(R.id.avatar);
-                mTextView = (TextView) view.findViewById(android.R.id.text1);
+                mImageView = view.findViewById(R.id.avatar);
+                mTextView = view.findViewById(android.R.id.text1);
             }
 
             @Override
@@ -84,49 +151,37 @@ public class CheeseListFragment extends Fragment {
             }
         }
 
-        public Cheese getValueAt(int position) {
-            return mValues.get(position);
-        }
-
-        public SimpleStringRecyclerViewAdapter(Context context, List<Cheese> items) {
-            context.getTheme().resolveAttribute(R.attr.selectableItemBackground, mTypedValue, true);
-            mBackground = mTypedValue.resourceId;
-            mValues = items;
-        }
-
         @Override
         public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             View view = LayoutInflater.from(parent.getContext())
                     .inflate(R.layout.list_item, parent, false);
             view.setBackgroundResource(mBackground);
-            return new ViewHolder(view);
+            holder = new ViewHolder(view);
+            return holder;
         }
 
         @Override
         public void onBindViewHolder(final ViewHolder holder, int position) {
-            holder.mBoundItem = mValues.get(position);
-            holder.mTextView.setText(holder.mBoundItem.getName());
-
-            holder.mView.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    Context context = v.getContext();
-                    Intent intent = new Intent(context, CheeseDetailActivity.class);
-                    intent.putExtra(CheeseDetailActivity.EXTRA_CHEESE, holder.mBoundItem);
-
-                    context.startActivity(intent);
-                }
-            });
+            Cheese item = items.get(position);
+            holder.mTextView.setText(item.getName());
+            holder.mView.setOnClickListener(this);
 
             Glide.with(holder.mImageView.getContext())
-                    .load(holder.mBoundItem.getDrawableResId())
+                    .load(item.getDrawableResId())
                     .fitCenter()
                     .into(holder.mImageView);
         }
 
         @Override
+        public void onClick(View view) {
+            Intent intent = new Intent(view.getContext(), CheeseDetailActivity.class);
+            intent.putExtra(CheeseDetailActivity.EXTRA_CHEESE, items.get(holder.getAdapterPosition()));
+            view.getContext().startActivity(intent);
+        }
+
+        @Override
         public int getItemCount() {
-            return mValues.size();
+            return items.size();
         }
     }
 }

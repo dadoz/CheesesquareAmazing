@@ -33,30 +33,39 @@ public class CheeseDetailActivity extends AppCompatActivity {
     /**
      * The {@link Cheese} for which to display the details.
      */
-    private Cheese mCheese;
+    private Cheese cheese;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_detail);
 
+        //retrieve selected cheese
         Intent intent = getIntent();
-        mCheese = (Cheese) intent.getSerializableExtra(EXTRA_CHEESE);
+        cheese = (Cheese) intent.getSerializableExtra(EXTRA_CHEESE);
 
-        final Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        //set toolbar
+        final Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        if (getSupportActionBar() != null)
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
-        CollapsingToolbarLayout collapsingToolbar =
-                (CollapsingToolbarLayout) findViewById(R.id.collapsing_toolbar);
-        collapsingToolbar.setTitle(mCheese.getName());
+        //set collapsing toolbar
+        CollapsingToolbarLayout collapsingToolbar = findViewById(R.id.collapsing_toolbar);
+        collapsingToolbar.setTitle(cheese.getName());
 
         loadBackdrop();
     }
 
+    /**
+     * load image with glide
+     */
     private void loadBackdrop() {
-        final ImageView imageView = (ImageView) findViewById(R.id.backdrop);
-        Glide.with(this).load(mCheese.getDrawableResId()).centerCrop().into(imageView);
+        final ImageView imageView = findViewById(R.id.backdrop);
+        Glide.with(this)
+                .load(cheese.getDrawableResId())
+                .centerCrop()
+                .into(imageView);
     }
 
     @Override
